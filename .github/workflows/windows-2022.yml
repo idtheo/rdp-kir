@@ -12,10 +12,10 @@ jobs:
           Invoke-WebRequest https://raw.githubusercontent.com/Riders004/rdp/master/start.bat -OutFile start.bat
           Invoke-WebRequest https://raw.githubusercontent.com/Riders004/rdp/master/download1.jpeg -OutFile wallpaper.bat
           Invoke-WebRequest https://raw.githubusercontent.com/Vip3rLi0n/Ngrok-RDPs/main/resources/loop.ps1 -OutFile loop.ps1
-          
+
       - name: Extract ngrok
         run: Expand-Archive ngrok.zip
-        
+
       - name: Connect Ngrok.
         env:
           NGROK_AUTH: ${{ secrets.NGROK_AUTH_TOKEN }}
@@ -29,11 +29,37 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
           copy wallpaper.bat D:\a\wallpaper.bat
 
-      - name: Tunnel.
-        run: Start-Process Powershell -ArgumentList '-Noexit -Command "./ngrok/ngrok.exe tcp --region ap 3389"'
+      - name: Tunnel (start ngrok tcp with JSON log)
+        run: |
+          Start-Process `
+            -FilePath "./ngrok/ngrok.exe" `
+            -ArgumentList 'tcp --region ap 3389 --log=stdout --log-format=json' `
+            -NoNewWindow `
+            -RedirectStandardOutput "ngrok.log"
 
-      - name: Connect Rdp.
+      - name: Connect Rdp (print creds)
         run: cmd /c start.bat
+
+      - name: Get tunnel address (print tcp host:port)
+        shell: pwsh
+        run: |
+          $retries = 0
+          while ($retries -lt 30) {
+            if (Test-Path ".\ngrok.log") {
+              $line = Get-Content .\ngrok.log | Where-Object { $_ -match '"url":"tcp://[^"]+"' } | Select-Object -Last 1
+              if ($line) {
+                $m = [regex]::Match($line, '"url":"tcp://([^"]+)"')
+                if ($m.Success) {
+                  $addr = $m.Groups[1].Value
+                  Write-Host "IP: $addr"
+                  break
+                }
+              }
+            }
+            Start-Sleep -Seconds 2
+            $retries++
+          }
+          if ($retries -ge 30) { Write-Error "Could not retrieve ngrok tcp address"; }
 
       - name: Keep alive.
         run: powershell -ExecutionPolicy Bypass -File loop.ps1
