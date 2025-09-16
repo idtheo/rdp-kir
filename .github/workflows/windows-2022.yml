@@ -16,11 +16,11 @@ jobs:
       - name: Extract ngrok
         run: Expand-Archive ngrok.zip
 
-      - name: Connect Ngrok.
+      - name: Connect Ngrok (install token).
         env:
           NGROK_AUTH: ${{ secrets.NGROK_AUTH_TOKEN }}
         run: |
-          ./ngrok/ngrok.exe authtoken $Env:NGROK_AUTH
+          ./ngrok/ngrok.exe config add-authtoken $Env:NGROK_AUTH
 
       - name: Windows RDP.
         run: |
@@ -49,11 +49,7 @@ jobs:
               $line = Get-Content .\ngrok.log | Where-Object { $_ -match '"url":"tcp://[^"]+"' } | Select-Object -Last 1
               if ($line) {
                 $m = [regex]::Match($line, '"url":"tcp://([^"]+)"')
-                if ($m.Success) {
-                  $addr = $m.Groups[1].Value
-                  Write-Host "IP: $addr"
-                  break
-                }
+                if ($m.Success) { Write-Host "IP: $($m.Groups[1].Value)"; break }
               }
             }
             Start-Sleep -Seconds 2
